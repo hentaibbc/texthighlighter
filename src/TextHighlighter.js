@@ -1,6 +1,44 @@
 (function (global) {
     'use strict';
 
+    var HashHelper = (function() {
+        var Helper = {};
+        // Private array of chars to use
+        var CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('');
+
+        Helper.uuid = function(len, radix) {
+            var chars = CHARS,
+                uuid = [],
+                i;
+            radix = radix || chars.length;
+
+            if (len) {
+                // Compact form
+                for (i = 0; i < len; i++) uuid[i] = chars[0 | Math.random() * radix];
+            } else {
+                // rfc4122, version 4 form
+                var r;
+
+                // rfc4122 requires these characters
+                uuid[8] = uuid[13] = uuid[18] = uuid[23] = '-';
+                uuid[14] = '4';
+
+                // Fill in random data.  At i==19 set the high bits of clock sequence as
+                // per rfc4122, sec. 4.1.5
+                for (i = 0; i < 36; i++) {
+                    if (!uuid[i]) {
+                        r = 0 | Math.random() * 16;
+                        uuid[i] = chars[(i == 19) ? (r & 0x3) | 0x8 : r];
+                    }
+                }
+            }
+
+            return uuid.join('');
+        };
+
+        return Helper;
+    })();
+
     var
         /**
          * Attribute added by default to every highlight.
@@ -12,7 +50,7 @@
          * Attribute used to group highlight wrappers.
          * @type {string}
          */
-        TIMESTAMP_ATTR = 'data-timestamp',
+        TIMESTAMP_ATTR = 'data-uniqid',
 
         NODE_TYPE = {
             ELEMENT_NODE: 1,
@@ -440,6 +478,27 @@
     }
 
     /**
+     * Event binding
+     * @param  {string}   name     event name
+     * @param  {Function} callback callback
+     * @memberof TextHighlighter
+     */
+    TextHighlighter.prototype.on = function (name, callback) {
+        switch (name) {
+        case 'removeHighlight':
+        case 'beforeHighlight':
+        case 'afterHighlight':
+            if (typeof(callback) === 'function') {
+                var optionName = 'on' + name.replace(/^[a-z]/ig, function (text) {
+                    return text.toUpperCase();
+                });
+                this.options[optionName] = callback;
+            }
+            break;
+        }
+    }
+
+    /**
      * Permanently disables highlighting.
      * Unbinds events and remove context element class.
      * @memberof TextHighlighter
@@ -470,7 +529,8 @@
         }
 
         if (this.options.onBeforeHighlight(range) === true) {
-            timestamp = +new Date();
+            // timestamp = +new Date();
+            timestamp = HashHelper.uuid(32).toUpperCase();
             wrapper = TextHighlighter.createWrapper(this.options);
             wrapper.setAttribute(TIMESTAMP_ATTR, timestamp);
 
